@@ -1,31 +1,56 @@
 # AudioConverter.h
-programme en C++ qui me convertit les formats audio entre eux par exemple MP3 converted to WAV,  WAV converted to MP3, M4A converted to WAV WAV converted to M4A, M4A converted to MP3, MP3 converted to M4A.
 
-our convertir des fichiers audio entre différents formats en C++, nous allons utiliser une bibliothèque audio capable de lire et écrire plusieurs formats. Une des bibliothèques les plus populaires pour ce type de tâche est FFmpeg. FFmpeg est une solution complète pour l'enregistrement, la conversion et le streaming de fichiers audio et vidéo.
+Convertisseur audio en C++17 (MP3, WAV, M4A, FLAC, OGG, AAC) basé sur FFmpeg.
+Toutes les conversions entre ces formats sont possibles (MP3 ⇄ WAV, M4A ⇄ WAV, M4A ⇄ MP3, …).
 
-Nous allons écrire un programme en C++ qui utilise FFmpeg pour convertir des fichiers audio. Pour simplifier, nous allons utiliser la ligne de commande de FFmpeg via des appels système (system).
+## Prérequis
 
-Prérequis
-Installer FFmpeg : Assurez-vous que FFmpeg est installé sur votre système et accessible depuis la ligne de commande.
+- [FFmpeg](https://ffmpeg.org/) installé et accessible dans le `PATH`
+- Un compilateur C++17 (g++, clang, MSVC) — CMake optionnel
 
+## Compilation
 
-Explications
-AudioConverter Class:
+```bash
+g++ -std=c++17 -o audio_converter main.cpp AudioConverter.cpp
+# ou
+cmake -B build && cmake --build build
+```
 
-convert : Utilise la commande ffmpeg pour convertir le fichier audio en utilisant la ligne de commande. La fonction renvoie true si la conversion réussit, sinon false.
-getOutputFilePath : Génère le chemin du fichier de sortie en remplaçant l'extension de l'entrée par l'extension du format de sortie.
-Main Function:
+## Utilisation
 
-Demande à l'utilisateur de fournir le chemin du fichier source et le format de sortie désiré.
-Utilise la classe AudioConverter pour convertir le fichier et affiche un message de succès ou d'échec.
-Compilation et Exécution
-Assurez-vous que FFmpeg est installé et accessible via la ligne de commande, puis compilez et exécutez le programme avec :
+```bash
+./audio_converter -f mp3 chanson.wav                # -> chanson.mp3
+./audio_converter -f m4a -b 192k *.wav              # plusieurs fichiers, 192 kb/s
+./audio_converter -f wav -r 44100 -c 2 in.m4a       # 44,1 kHz stéréo
+./audio_converter -y -o sortie.flac entree.mp3      # écrase, format déduit de -o
+./audio_converter                                   # mode interactif
+```
 
-g++ -o audio_converter main.cpp AudioConverter.cpp
-./audio_converter
+| Option | Description |
+|---|---|
+| `-f, --format` | format de sortie (mp3, wav, m4a, flac, ogg, aac) |
+| `-o, --output` | fichier de sortie (un seul fichier d'entrée) |
+| `-b, --bitrate` | débit, ex. `192k` (formats avec perte) |
+| `-r, --rate` | fréquence d'échantillonnage en Hz |
+| `-c, --channels` | 1 = mono, 2 = stéréo |
+| `-y, --overwrite` | écraser les fichiers existants |
 
-Note
-Ce programme utilise des appels système pour exécuter des commandes FFmpeg. Pour une solution plus robuste et sécurisée, vous pouvez utiliser les bibliothèques FFmpeg directement en C++. Cependant, cela est beaucoup plus complexe et nécessite une bonne compréhension de l'API FFmpeg.
+Code de retour : `0` succès, `1` échec de conversion, `2` erreur d'arguments.
 
-Si vous avez des questions supplémentaires ou besoin de fonctionnalités plus avancées, n'hésitez pas à me le faire savoir !
-.
+## API
+
+```cpp
+#include "AudioConverter.h"
+
+ConversionOptions opts;
+opts.bitrate = "192k";
+auto out = AudioConverter::getOutputFilePath("in.wav", "mp3");
+auto res = AudioConverter::convert("in.wav", out, "mp3", opts);
+if (!res.success) std::cerr << res.message << "\n";
+```
+
+## Notes de conception
+
+- FFmpeg est lancé directement (`fork`/`execvp`, `_spawnvp` sous Windows), **sans shell** : les espaces et caractères spéciaux dans les noms de fichiers sont sans danger (pas d'injection de commande).
+- Codec et conteneur explicites par format ; les pochettes/pistes vidéo sont ignorées.
+- Vérifications préalables : FFmpeg présent, entrée existante, sortie différente de l'entrée, pas d'écrasement sans `-y`. Un fichier de sortie partiel est supprimé en cas d'échec.
